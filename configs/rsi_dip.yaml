@@ -1,0 +1,28 @@
+# Mean reversion — buy short-term panic in uptrends, sell the bounce.
+# Short-horizon (days) — included for comparison against momentum.
+name: rsi-dip
+strategy: rsi_dip
+params:
+  rsi_window: 3
+  buy_below: 15
+  exit_above: 65
+  max_hold_days: 10
+  trend_sma: 200
+
+universe: sp100
+start: 2025-07-01
+end: 2026-07-01
+capital: 1000
+fractional_shares: true
+
+risk:
+  max_positions: 5
+  position_pct: 20
+  stop_loss_pct: 0       # research: hard stops HURT mean reversion...
+  trailing_stop_pct: 0   # ...use the time stop instead
+  max_hold_days: 10
+  regime_filter: true
+
+costs:
+  slippage_bps: 5
+  commission: 0.0

@@ -1,0 +1,28 @@
+# "Follow the flow" — the recommended starting strategy.
+# Buy the 5 strongest S&P stocks by 6-month return, rebalance monthly,
+# only when the overall market (SPY) is above its 200-day average.
+name: momentum-top5
+strategy: momentum
+params:
+  lookback_days: 126     # ~6 months of momentum
+  skip_days: 21          # skip the most recent month (academic 12-1 convention)
+  top_n: 5               # buy the top 5
+  hold_rank: 10          # sell only when a holding falls below rank 10
+  rebalance_days: 21     # re-rank monthly
+
+universe: sp100
+start: 2025-07-01
+end: 2026-07-01
+capital: 1000
+fractional_shares: true
+
+risk:
+  max_positions: 5
+  position_pct: 20       # 20% of equity per position
+  stop_loss_pct: 15      # hard floor per position
+  trailing_stop_pct: 20  # wide trail — research says tight stops kill momentum
+  regime_filter: true    # no new buys when SPY < 200-day SMA
+
+costs:
+  slippage_bps: 5
+  commission: 0.0

@@ -1,0 +1,23 @@
+# Trend following — buy 20/50-day SMA upcrosses, exit on the downcross.
+name: sma-cross-20-50
+strategy: sma_cross
+params:
+  fast: 20
+  slow: 50
+
+universe: sp100
+start: 2025-07-01
+end: 2026-07-01
+capital: 1000
+fractional_shares: true
+
+risk:
+  max_positions: 5
+  position_pct: 20
+  stop_loss_pct: 10
+  trailing_stop_pct: 15
+  regime_filter: true
+
+costs:
+  slippage_bps: 5
+  commission: 0.0

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradeLab — test trading ideas safely</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+
+<header>
+  <h1>📈 TradeLab</h1>
+  <p><strong>Your idea:</strong> buy cheap, sell expensive. <strong>The hard part:</strong>
+  <em>which</em> stocks, <em>when</em>, and <em>when to get out</em>.
+  A <strong>strategy</strong> is a fixed set of rules that answers those questions
+  automatically — no feelings involved. Try one here, 100% safely.</p>
+</header>
+
+<nav class="tabs">
+  <button data-tab="back" class="active">🕰️ Time machine</button>
+  <button data-tab="live">📡 Live practice</button>
+  <button data-tab="learn">📖 Glossary</button>
+</nav>
+
+<!-- ================= TIME MACHINE ================= -->
+<section id="tab-back">
+  <div class="card intro">
+    Replay the past and see what your money <em>would have</em> become if a robot
+    followed the <strong>“Follow the winners”</strong> strategy: buy the 5 stocks that
+    rose the most over the last 6 months (that's where the smart money already went),
+    swap monthly, with safety rules attached.
+  </div>
+
+  <div class="card">
+    <div class="controls">
+      <label>Pretend starting money ($)
+        <input type="number" id="capital" value="1000" min="100" step="100">
+      </label>
+      <label>Start the time machine at
+        <input type="date" id="start-date">
+      </label>
+      <label>…and play forward until
+        <input type="date" id="end-date">
+      </label>
+    </div>
+
+    <details>
+      <summary>⚙️ Fine-tuning (safe to ignore — the defaults are the researched ones)</summary>
+      <div class="controls sliders">
+        <label>Look how far back for winners: <b><span id="v-lookback">6</span> months</b>
+          <input type="range" id="lookback" min="1" max="12" value="6"></label>
+        <label>Number of stocks to own: <b><span id="v-topn">5</span></b>
+          <input type="range" id="topn" min="1" max="10" value="5"></label>
+        <label>Sell a stock when it drops below rank: <b>#<span id="v-holdrank">10</span></b>
+          <input type="range" id="holdrank" min="5" max="30" value="10"></label>
+        <label>Housekeeping every: <b><span id="v-rebal">21</span> trading days</b>
+          <input type="range" id="rebal" min="5" max="63" value="21"></label>
+        <label>Emergency exit: sell if a stock falls <b><span id="v-stop">15</span>%</b> below what you paid (0 = off)
+          <input type="range" id="stop" min="0" max="30" value="15"></label>
+        <label>Give-back limit: sell if a stock falls <b><span id="v-trail">20</span>%</b> from its best price (0 = off)
+          <input type="range" id="trail" min="0" max="40" value="20"></label>
+        <label class="checkbox">
+          <input type="checkbox" id="regime" checked>
+          🌦️ Storm shelter: stop buying when the whole market is falling
+          (S&amp;P 500 below its 200-day average)
+        </label>
+      </div>
+    </details>
+
+    <button id="run-btn" class="primary">🚀 Run the time machine</button>
+    <div id="bt-progress" class="progress" hidden></div>
+  </div>
+
+  <div id="bt-results" hidden>
+    <h2>The verdict</h2>
+    <div id="verdict-banner"></div>
+    <div class="metric-grid" id="metric-cards"></div>
+    <div id="bt-warnings"></div>
+    <div class="card"><div id="chart-equity" class="chart"></div></div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Monthly report card <span class="hint">(green = the month ended up)</span></h3>
+        <div id="monthly-table"></div>
+      </div>
+      <div class="card"><div id="chart-dd" class="chart small"></div></div>
+    </div>
+    <div class="card">
+      <h3>🧾 Every decision the robot made</h3>
+      <p class="hint">Each row: what it bought, when, and why it eventually sold.</p>
+      <div class="table-wrap" id="trades-table"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIVE PRACTICE ================= -->
+<section id="tab-live" hidden>
+  <div class="card intro">
+    This uses <strong>Alpaca</strong>, a stock broker built for programs. Its free
+    <strong>paper trading</strong> account is a flight simulator: real live market
+    prices, fake money. 🔒 <strong>This site is hard-wired to the pretend account
+    only — it physically cannot spend real money.</strong>
+  </div>
+
+  <div id="live-setup" class="card" hidden>
+    <h3>One-time setup (about 5 minutes)</h3>
+    <ol>
+      <li>Go to <a href="https://alpaca.markets" target="_blank" rel="noopener">alpaca.markets</a>
+        → <em>Sign up</em> (free — no bank account or deposit needed)</li>
+      <li>In the dashboard, make sure the switch at the top-left says
+        <strong>Paper</strong> (pretend money) — not Live</li>
+      <li>Find <strong>API Keys</strong> on the right → <em>Generate new keys</em></li>
+      <li>Paste the two codes below — they're saved <em>only in this browser</em></li>
+    </ol>
+    <div class="controls">
+      <label>API Key ID <input type="password" id="alpaca-key"></label>
+      <label>Secret Key <input type="password" id="alpaca-secret"></label>
+    </div>
+    <button id="connect-btn" class="primary">Connect</button>
+    <div id="connect-msg"></div>
+  </div>
+
+  <div id="live-dash" hidden>
+    <div class="row-between">
+      <h2>📊 Your pretend account right now</h2>
+      <button id="forget-btn" class="ghost">Disconnect / change keys</button>
+    </div>
+    <div class="metric-grid" id="account-cards"></div>
+    <div class="card"><div id="chart-account" class="chart small"></div></div>
+    <div class="card">
+      <h3>Stocks you own</h3>
+      <div class="table-wrap" id="positions-table"></div>
+    </div>
+
+    <div class="card">
+      <h3>🤖 Ask the strategy: <em>what should I do today?</em></h3>
+      <p class="hint">Runs “Follow the winners” on today's real prices and explains
+      its to-do list. Nothing happens until you press the button.</p>
+      <label>How much pretend money should the robot play with, total? ($)
+        <input type="number" id="budget" value="1000" min="100" step="100">
+      </label>
+      <button id="plan-btn" class="primary">🔍 Check today's plan</button>
+      <div id="plan-progress" class="progress" hidden></div>
+      <div id="plan-output"></div>
+    </div>
+
+    <p class="hint">💡 <strong>How to use this mode:</strong> check the plan once a day
+    or even once a week — this strategy moves slowly, on purpose. Watch the account
+    chart grow (or not) and compare it with the time machine's promises. If after
+    1–2 months you trust it, <em>then</em> think about real money.</p>
+  </div>
+</section>
+
+<!-- ================= GLOSSARY ================= -->
+<section id="tab-learn" hidden>
+  <div class="card">
+    <h2>Plain-English dictionary</h2>
+    <table class="glossary">
+      <tr><th>Word you'll see</th><th>What it actually means</th></tr>
+      <tr><td><b>Strategy</b></td><td>A fixed recipe of rules: what to buy, when, and when to sell. The robot follows it with zero emotions.</td></tr>
+      <tr><td><b>Backtest / time machine</b></td><td>Replaying the past with your rules to see what <em>would have</em> happened. Great for learning — but the past never repeats exactly.</td></tr>
+      <tr><td><b>Paper trading</b></td><td>Trading with pretend money on the real live market. A flight simulator for investing.</td></tr>
+      <tr><td><b>Alpaca</b></td><td>An American stock broker that programs can talk to. We use only its pretend-money (paper) mode.</td></tr>
+      <tr><td><b>S&amp;P 500 / SPY</b></td><td>The 500 biggest US companies bundled together. "SPY" is the fund you'd buy to own the bundle — our "do nothing" comparison.</td></tr>
+      <tr><td><b>Portfolio</b></td><td>All the stocks you own right now.</td></tr>
+      <tr><td><b>Momentum</b></td><td>Stocks that rose recently tend to keep rising for a while. Where money flows, more money follows.</td></tr>
+      <tr><td><b>200-day average</b></td><td>The average price over ~10 months. Above it = healthy weather. Below = storms happen — the robot stops buying.</td></tr>
+      <tr><td><b>Stop loss</b></td><td>Emergency exit: automatically sell if a stock falls X% below what you paid. Caps the damage of one bad pick.</td></tr>
+      <tr><td><b>Trailing stop</b></td><td>Give-back limit: sell if a stock falls X% from the <em>highest</em> point it reached — winners can't quietly become losers.</td></tr>
+      <tr><td><b>Drawdown</b></td><td>How far your total money fell from its best point. The −20% moments are where people panic and quit.</td></tr>
+      <tr><td><b>Win rate</b></td><td>% of trades that made money. Weirdly unimportant alone: 40% is great if wins are 3× bigger than losses.</td></tr>
+      <tr><td><b>Slippage</b></td><td>Real fills are slightly worse than the printed price. We charge the robot for it so results stay honest.</td></tr>
+      <tr><td><b>Rebalance</b></td><td>Scheduled housekeeping: kick out stocks that no longer fit the rules, add ones that do. Ours is monthly.</td></tr>
+      <tr><td><b>Fractional shares</b></td><td>Buying 0.3 of a share — lets $1,000 spread across 5 stocks even if one share costs $800.</td></tr>
+    </table>
+    <p><strong>The one lesson from all the research:</strong> nobody beats the market
+    with secret genius picks. The realistic goal is a simple, boring set of rules,
+    followed with discipline, that wins <em>slightly</em> more than it loses — plus
+    safety rules so one bad month can't wipe you out.</p>
+  </div>
+</section>
+
+<footer>
+  <p>TradeLab · educational tool · pretend money only · not financial advice</p>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

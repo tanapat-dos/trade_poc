@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tradelab-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev_server.mjs"],
+      "port": 8888
+    }
+  ]
+}
