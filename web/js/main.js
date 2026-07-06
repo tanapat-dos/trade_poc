@@ -194,7 +194,22 @@ $("forget-btn").addEventListener("click", () => {
   initLive();
 });
 
+$("cancel-pending-btn").addEventListener("click", async () => {
+  const btn = $("cancel-pending-btn");
+  btn.disabled = true;
+  btn.textContent = "Canceling…";
+  try {
+    await alpaca.cancelAllOrders();
+    setTimeout(refreshAccount, 1500);
+  } catch (e) {
+    $("pending-orders").innerHTML += `<div class="banner bad">Couldn't cancel: ${e.message}</div>`;
+  } finally {
+    setTimeout(() => { btn.disabled = false; btn.textContent = "✖ Cancel all waiting orders"; }, 1600);
+  }
+});
+
 async function refreshAccount() {
+  refreshMarketAndOrders(); // market status + pending orders + activity log (independent)
   try {
     const [acct, positions, hist] = await Promise.all([
       alpaca.getAccount(), alpaca.getPositions(), alpaca.portfolioHistory(),
@@ -236,10 +251,106 @@ async function refreshAccount() {
   }
 }
 
+// Market open/closed banner, queued-order list, and the day-by-day log.
+// Runs independently so a hiccup here never blanks the account view.
+async function refreshMarketAndOrders() {
+  try {
+    const [clock, open, recent] = await Promise.all([
+      alpaca.getClock(), alpaca.getOpenOrders(), alpaca.getRecentOrders(),
+    ]);
+    window._marketOpen = !!clock.is_open;
+
+    // --- market status banner ---
+    if (clock.is_open) {
+      $("market-status").innerHTML =
+        `<div class="banner good">🟢 US market is <b>OPEN</b> — orders fill within seconds. It closes at ${fmtTime(clock.next_close)}.</div>`;
+    } else {
+      $("market-status").innerHTML =
+        `<div class="banner warn">🔴 US market is <b>CLOSED</b> — any orders you place now will wait in line and fill at the next open (${fmtTime(clock.next_open)}). Until then, your positions and chart won't change.</div>`;
+    }
+
+    // --- queued (pending) orders ---
+    if (open.length) {
+      const rows = open.map((o) => `<tr>
+        <td class="${o.side === "buy" ? "up" : "down"}">${o.side === "buy" ? "🟢 BUY" : "🔴 SELL"}</td>
+        <td><b>${o.symbol}</b></td>
+        <td>${o.notional ? money(+o.notional) : (o.qty + " sh")}</td>
+        <td>${o.status}</td></tr>`).join("");
+      $("pending-orders").innerHTML =
+        `<table><tr><th>Action</th><th>Stock</th><th>Amount</th><th>State</th></tr>${rows}</table>`;
+      $("pending-card").hidden = false;
+    } else {
+      $("pending-card").hidden = true;
+    }
+
+    // --- day-by-day activity log (grouped by date) ---
+    renderActivityLog(recent);
+  } catch (e) {
+    $("market-status").innerHTML =
+      `<div class="banner warn">Couldn't load market status / order history: ${e.message}</div>`;
+  }
+}
+
+function renderActivityLog(orders) {
+  // Only orders that actually did something (submitted/filled/canceled).
+  const byDay = new Map();
+  for (const o of orders) {
+    const stamp = o.filled_at || o.submitted_at || o.created_at;
+    if (!stamp) continue;
+    const day = stamp.slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(o);
+  }
+  if (!byDay.size) {
+    $("activity-log").innerHTML = `<p class="hint">No activity yet. Once you apply a plan, each day's buys and sells show up here.</p>`;
+    return;
+  }
+  const days = [...byDay.keys()].sort().reverse();
+  let html = "";
+  for (const day of days) {
+    const items = byDay.get(day).map((o) => {
+      const amt = o.filled_qty && +o.filled_qty > 0 && o.filled_avg_price
+        ? `${money(+o.filled_qty * +o.filled_avg_price)} @ ${money(+o.filled_avg_price)}`
+        : (o.notional ? money(+o.notional) : (o.qty ? o.qty + " sh" : ""));
+      const state = o.status === "filled" ? "✅ done"
+        : o.status === "canceled" ? "✖ canceled"
+        : o.status === "accepted" || o.status === "new" || o.status === "pending_new" ? "⏳ waiting for open"
+        : o.status;
+      return `<tr>
+        <td class="${o.side === "buy" ? "up" : "down"}">${o.side === "buy" ? "🟢 BUY" : "🔴 SELL"}</td>
+        <td><b>${o.symbol}</b></td>
+        <td>${amt}</td>
+        <td>${state}</td></tr>`;
+    }).join("");
+    html += `<h4 style="margin:14px 0 6px">${day}</h4>
+      <table><tr><th>Action</th><th>Stock</th><th>Amount</th><th>Result</th></tr>${items}</table>`;
+  }
+  $("activity-log").innerHTML = html;
+}
+
+function fmtTime(iso) {
+  try {
+    return new Date(iso).toLocaleString("en-US", {
+      timeZone: "America/New_York", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    }) + " New York time";
+  } catch { return iso; }
+}
+
 $("plan-btn").addEventListener("click", async () => {
   const btn = $("plan-btn");
   btn.disabled = true;
   try {
+    // Guard against stacking: if orders are still queued from a previous run,
+    // buying again would double up. Make the user clear them first.
+    let openOrders = [];
+    try { openOrders = await alpaca.getOpenOrders(); } catch { /* non-fatal */ }
+    if (openOrders.length) {
+      $("plan-output").innerHTML =
+        `<div class="banner warn">⏳ You already have <b>${openOrders.length}</b> order(s) waiting to fill (see "Orders waiting to execute" above). Placing a new plan now would buy those same stocks twice. Wait for them to fill at the next market open, or cancel them first.</div>`;
+      return;
+    }
+
     const end = iso(new Date());
     const warmup = iso(new Date(Date.now() - 550 * 864e5));
     const { data, spy } = await loadMarketData(warmup, end, $("plan-progress"));
@@ -277,7 +388,10 @@ function renderPlan(plan) {
       plan.buys.map(([t, d, r]) => `<div class="plan-item"><b>${t}</b> (${money(d)}) — ${r}</div>`).join("");
   }
   if (plan.sells.length || plan.buys.length) {
-    html += `<p class="hint">Orders placed outside US market hours (9:30–16:00 New York time, Mon–Fri) simply wait and execute at the next open.</p>
+    const marketMsg = window._marketOpen
+      ? `The market is open, so these will fill within seconds.`
+      : `The market is closed right now, so these will <b>wait in line and fill at the next open</b> (9:30 New York time, Mon–Fri). They'll show under "Orders waiting to execute" until then — don't submit them again.`;
+    html += `<p class="hint">${marketMsg}</p>
       <button id="execute-btn" class="primary">✅ Yes — do all of this in my pretend account</button>`;
   }
   html += `<details><summary>🏆 See today's full strength ranking</summary><div class="table-wrap"><table>
@@ -299,8 +413,11 @@ function renderPlan(plan) {
       try { await alpaca.buyNotional(t, d); log.push(`🟢 Bought ${money(d)} of ${t}`); }
       catch (e) { log.push(`⚠️ Couldn't buy ${t}: ${e.message}`); }
     }
+    const doneMsg = window._marketOpen
+      ? `Done! Your positions will update in a minute.`
+      : `Done! The market is closed, so these are now <b>waiting orders</b> — they'll fill at the next open. Check back after 9:30 New York time. No need to press this again.`;
     $("plan-output").innerHTML = log.map((l) => `<div class="plan-item">${l}</div>`).join("") +
-      `<div class="banner good">Done! Your positions will update in a minute.</div>`;
+      `<div class="banner good">${doneMsg}</div>`;
     setTimeout(refreshAccount, 3000);
   });
 }

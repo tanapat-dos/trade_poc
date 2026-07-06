@@ -40,6 +40,19 @@ export const getPositions = () => api("/positions");
 export const portfolioHistory = () =>
   api("/account/portfolio/history?period=3M&timeframe=1D");
 
+// Is the US market open right now? Returns { is_open, next_open, next_close }.
+export const getClock = () => api("/clock");
+
+// Orders that haven't filled yet (queued — will execute at next market open).
+export const getOpenOrders = () => api("/orders?status=open&limit=100");
+
+// Recent orders (any status) — used for the day-by-day activity log.
+export const getRecentOrders = () =>
+  api("/orders?status=all&limit=100&direction=desc");
+
+// Cancel every queued order (used to avoid duplicate stacked orders).
+export const cancelAllOrders = () => api("/orders", { method: "DELETE" });
+
 export const buyNotional = (symbol, dollars) =>
   api("/orders", {
     method: "POST",

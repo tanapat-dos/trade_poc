@@ -125,11 +125,19 @@
       <h2>📊 Your pretend account right now</h2>
       <button id="forget-btn" class="ghost">Disconnect / change keys</button>
     </div>
+    <div id="market-status"></div>
     <div class="metric-grid" id="account-cards"></div>
     <div class="card"><div id="chart-account" class="chart small"></div></div>
     <div class="card">
       <h3>Stocks you own</h3>
       <div class="table-wrap" id="positions-table"></div>
+    </div>
+    <div class="card" id="pending-card" hidden>
+      <h3>⏳ Orders waiting to execute</h3>
+      <p class="hint">These were submitted while the market was closed. They'll fill
+      automatically at the next open — you don't need to submit them again.</p>
+      <div class="table-wrap" id="pending-orders"></div>
+      <button id="cancel-pending-btn" class="ghost">✖ Cancel all waiting orders</button>
     </div>
 
     <div class="card">
@@ -142,6 +150,13 @@
       <button id="plan-btn" class="primary">🔍 Check today's plan</button>
       <div id="plan-progress" class="progress" hidden></div>
       <div id="plan-output"></div>
+    </div>
+
+    <div class="card">
+      <h3>📅 Day-by-day activity</h3>
+      <p class="hint">Every buy, sell and fill the strategy has made, newest first.
+      A day with no entry means the strategy chose to do nothing that day.</p>
+      <div class="table-wrap" id="activity-log"></div>
     </div>
 
     <p class="hint">💡 <strong>How to use this mode:</strong> check the plan once a day
