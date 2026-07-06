@@ -259,15 +259,7 @@ async function refreshMarketAndOrders() {
       alpaca.getClock(), alpaca.getOpenOrders(), alpaca.getRecentOrders(),
     ]);
     window._marketOpen = !!clock.is_open;
-
-    // --- market status banner ---
-    if (clock.is_open) {
-      $("market-status").innerHTML =
-        `<div class="banner good">🟢 US market is <b>OPEN</b> — orders fill within seconds. It closes at ${fmtTime(clock.next_close)}.</div>`;
-    } else {
-      $("market-status").innerHTML =
-        `<div class="banner warn">🔴 US market is <b>CLOSED</b> — any orders you place now will wait in line and fill at the next open (${fmtTime(clock.next_open)}). Until then, your positions and chart won't change.</div>`;
-    }
+    renderMarketClock(clock);
 
     // --- queued (pending) orders ---
     if (open.length) {
@@ -335,6 +327,54 @@ function fmtTime(iso) {
       hour: "numeric", minute: "2-digit",
     }) + " New York time";
   } catch { return iso; }
+}
+
+// ---------------- live market clock + countdown ----------------
+let countdownTimer = null;
+
+function renderMarketClock(clock) {
+  const open = !!clock.is_open;
+  const target = open ? clock.next_close : clock.next_open;
+  $("market-status").innerHTML = `
+    <div class="market-clock ${open ? "is-open" : "is-closed"}">
+      <span class="mc-dot"></span>
+      <div class="mc-main">
+        <div class="mc-status">${open ? "Market is OPEN" : "Market is closed"}</div>
+        <div class="mc-note">${open
+          ? "Orders fill within seconds."
+          : "Orders you place now queue and fill at the next open."}</div>
+      </div>
+      <div class="mc-timer">
+        <div class="mc-timer-label">${open ? "Closes in" : "Opens in"}</div>
+        <div class="mc-timer-value" id="mc-countdown">--:--:--</div>
+        <div class="mc-timer-when">${fmtTime(target)}</div>
+      </div>
+    </div>`;
+  startCountdown(target);
+}
+
+function startCountdown(targetIso) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  const target = new Date(targetIso).getTime();
+  const tick = () => {
+    const el = $("mc-countdown");
+    if (!el) { clearInterval(countdownTimer); return; }
+    let diff = Math.floor((target - Date.now()) / 1000);
+    if (diff <= 0) {
+      el.textContent = "00:00:00";
+      clearInterval(countdownTimer);
+      // The market just flipped open/closed — pull fresh state after a beat.
+      setTimeout(refreshAccount, 3000);
+      return;
+    }
+    const d = Math.floor(diff / 86400); diff -= d * 86400;
+    const h = Math.floor(diff / 3600); diff -= h * 3600;
+    const m = Math.floor(diff / 60); const s = diff - m * 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    el.textContent = (d > 0 ? `${d}d ` : "") + `${pad(h)}:${pad(m)}:${pad(s)}`;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
 }
 
 $("plan-btn").addEventListener("click", async () => {
@@ -421,3 +461,6 @@ function renderPlan(plan) {
     setTimeout(refreshAccount, 3000);
   });
 }
+
+// Live practice is the landing tab — initialize it on load.
+initLive();

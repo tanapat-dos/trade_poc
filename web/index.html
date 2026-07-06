@@ -3,28 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TradeLab — test trading ideas safely</title>
+<title>TradeLab — a trading robot on the real market, with pretend money</title>
 <link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
 
 <header>
-  <h1>📈 TradeLab</h1>
-  <p><strong>Your idea:</strong> buy cheap, sell expensive. <strong>The hard part:</strong>
-  <em>which</em> stocks, <em>when</em>, and <em>when to get out</em>.
-  A <strong>strategy</strong> is a fixed set of rules that answers those questions
-  automatically — no feelings involved. Try one here, 100% safely.</p>
+  <div class="brand">
+    <span class="brand-badge">📈</span>
+    <div class="brand-text">
+      <h1>TradeLab</h1>
+      <p class="tagline">A momentum trading robot running on the <strong>real live market</strong> — with 100% pretend money.</p>
+    </div>
+  </div>
 </header>
 
 <nav class="tabs">
-  <button data-tab="back" class="active">🕰️ Time machine</button>
-  <button data-tab="live">📡 Live practice</button>
+  <button data-tab="live" class="active">📡 Live practice</button>
+  <button data-tab="back">🕰️ Time machine</button>
   <button data-tab="learn">📖 Glossary</button>
 </nav>
 
 <!-- ================= TIME MACHINE ================= -->
-<section id="tab-back">
+<section id="tab-back" hidden>
   <div class="card intro">
     Replay the past and see what your money <em>would have</em> become if a robot
     followed the <strong>“Follow the winners”</strong> strategy: buy the 5 stocks that
@@ -94,12 +99,12 @@
 </section>
 
 <!-- ================= LIVE PRACTICE ================= -->
-<section id="tab-live" hidden>
+<section id="tab-live">
   <div class="card intro">
-    This uses <strong>Alpaca</strong>, a stock broker built for programs. Its free
-    <strong>paper trading</strong> account is a flight simulator: real live market
-    prices, fake money. 🔒 <strong>This site is hard-wired to the pretend account
-    only — it physically cannot spend real money.</strong>
+    <span class="pill">🔒 Pretend money only</span>
+    This is your robot's <strong>paper-trading</strong> account on <strong>Alpaca</strong> —
+    a flight simulator with real live market prices and fake money. It's hard-wired
+    to the pretend account and physically cannot spend real cash.
   </div>
 
   <div id="live-setup" class="card" hidden>
@@ -122,12 +127,20 @@
 
   <div id="live-dash" hidden>
     <div class="row-between">
-      <h2>📊 Your pretend account right now</h2>
+      <h2>📊 Your pretend account</h2>
       <button id="forget-btn" class="ghost">Disconnect / change keys</button>
     </div>
+
     <div id="market-status"></div>
+
+    <div class="banner auto-pilot">
+      🤖 <strong>Auto-pilot is on.</strong> The robot runs the strategy automatically
+      every weekday shortly after the market opens (≈9:45&nbsp;AM New&nbsp;York time).
+      You can also run it yourself any time with the button below.
+    </div>
+
     <div class="metric-grid" id="account-cards"></div>
-    <div class="card"><div id="chart-account" class="chart small"></div></div>
+    <div class="card"><h3>Account value over time</h3><div id="chart-account" class="chart small"></div></div>
     <div class="card">
       <h3>Stocks you own</h3>
       <div class="table-wrap" id="positions-table"></div>
