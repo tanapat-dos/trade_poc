@@ -161,9 +161,20 @@ async function initLive() {
 }
 
 $("connect-btn").addEventListener("click", async () => {
-  const key = $("alpaca-key").value, secret = $("alpaca-secret").value;
+  const btn = $("connect-btn");
+  const key = $("alpaca-key").value.trim(), secret = $("alpaca-secret").value.trim();
   if (!key || !secret) { $("connect-msg").innerHTML = `<div class="banner bad">Please paste both keys.</div>`; return; }
-  alpaca.saveKeys(key, secret);
+
+  // Saving to localStorage can throw (Safari private mode / storage blocked).
+  try {
+    alpaca.saveKeys(key, secret);
+  } catch (e) {
+    $("connect-msg").innerHTML = `<div class="banner bad">Your browser is blocking local storage, so the keys can't be saved. Turn off private/incognito mode (or allow site data) and try again. (${e.message})</div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  $("connect-msg").innerHTML = `<div class="banner">Connecting to Alpaca…</div>`;
   try {
     await alpaca.getAccount();
     $("connect-msg").innerHTML = `<div class="banner good">Connected! 🎉</div>`;
@@ -172,6 +183,8 @@ $("connect-btn").addEventListener("click", async () => {
   } catch (e) {
     alpaca.forgetKeys();
     $("connect-msg").innerHTML = `<div class="banner bad">Keys were rejected — double-check you copied the <b>Paper</b> keys. (${e.message})</div>`;
+  } finally {
+    btn.disabled = false;
   }
 });
 
