@@ -1,0 +1,10 @@
+{
+  "name": "tradelab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TradeLab — momentum trading robot showcase (Netlify functions + static web app)",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9"
+  }
+}

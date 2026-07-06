@@ -157,7 +157,8 @@ async function initLive() {
 }
 
 async function refreshAccount() {
-  refreshMarketAndOrders(); // market status + pending orders + activity log (independent)
+  refreshMarketAndOrders(); // market status + pending orders (independent)
+  refreshDecisionLog();     // public daily decision log (independent)
   try {
     const [acct, positions, hist] = await Promise.all([
       alpaca.getAccount(), alpaca.getPositions(), alpaca.portfolioHistory(),
@@ -204,8 +205,8 @@ async function refreshAccount() {
 // Runs independently so a hiccup here never blanks the account view.
 async function refreshMarketAndOrders() {
   try {
-    const [clock, open, recent] = await Promise.all([
-      alpaca.getClock(), alpaca.getOpenOrders(), alpaca.getRecentOrders(),
+    const [clock, open] = await Promise.all([
+      alpaca.getClock(), alpaca.getOpenOrders(),
     ]);
     window._marketOpen = !!clock.is_open;
     renderMarketClock(clock);
@@ -223,50 +224,71 @@ async function refreshMarketAndOrders() {
     } else {
       $("pending-card").hidden = true;
     }
-
-    // --- day-by-day activity log (grouped by date) ---
-    renderActivityLog(recent);
   } catch (e) {
     $("market-status").innerHTML =
-      `<div class="banner warn">Couldn't load market status / order history: ${e.message}</div>`;
+      `<div class="banner warn">Couldn't load market status: ${e.message}</div>`;
   }
 }
 
-function renderActivityLog(orders) {
-  // Only orders that actually did something (submitted/filled/canceled).
-  const byDay = new Map();
-  for (const o of orders) {
-    const stamp = o.filled_at || o.submitted_at || o.created_at;
-    if (!stamp) continue;
-    const day = stamp.slice(0, 10);
-    if (!byDay.has(day)) byDay.set(day, []);
-    byDay.get(day).push(o);
+// Public daily decision log: what the robot decided, why, and what it did.
+async function refreshDecisionLog() {
+  try {
+    const r = await fetch("/api/log");
+    const { entries } = await r.json();
+    renderDecisionLog(entries || []);
+  } catch (e) {
+    $("activity-log").innerHTML = `<p class="hint">Couldn't load the log: ${e.message}</p>`;
   }
-  if (!byDay.size) {
-    $("activity-log").innerHTML = `<p class="hint">No activity yet. Once you apply a plan, each day's buys and sells show up here.</p>`;
+}
+
+function renderDecisionLog(entries) {
+  if (!entries.length) {
+    $("activity-log").innerHTML = `<p class="hint">No entries yet. The robot writes one here automatically after each weekday run — the first will appear shortly after the next market open.</p>`;
     return;
   }
-  const days = [...byDay.keys()].sort().reverse();
-  let html = "";
-  for (const day of days) {
-    const items = byDay.get(day).map((o) => {
-      const amt = o.filled_qty && +o.filled_qty > 0 && o.filled_avg_price
-        ? `${money(+o.filled_qty * +o.filled_avg_price)} @ ${money(+o.filled_avg_price)}`
-        : (o.notional ? money(+o.notional) : (o.qty ? o.qty + " sh" : ""));
-      const state = o.status === "filled" ? "✅ done"
-        : o.status === "canceled" ? "✖ canceled"
-        : o.status === "accepted" || o.status === "new" || o.status === "pending_new" ? "⏳ waiting for open"
-        : o.status;
-      return `<tr>
-        <td class="${o.side === "buy" ? "up" : "down"}">${o.side === "buy" ? "🟢 BUY" : "🔴 SELL"}</td>
-        <td><b>${o.symbol}</b></td>
-        <td>${amt}</td>
-        <td>${state}</td></tr>`;
-    }).join("");
-    html += `<h4 style="margin:14px 0 6px">${day}</h4>
-      <table><tr><th>Action</th><th>Stock</th><th>Amount</th><th>Result</th></tr>${items}</table>`;
-  }
-  $("activity-log").innerHTML = html;
+  const dayName = (d) => {
+    try {
+      return new Date(d + "T12:00:00Z").toLocaleDateString("en-US",
+        { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+    } catch { return d; }
+  };
+
+  $("activity-log").innerHTML = entries.map((e) => {
+    if (e.skipped) {
+      return `<div class="log-day">
+        <div class="log-head"><span class="log-date">${dayName(e.date)}</span>
+          <span class="log-tag neutral">no action</span></div>
+        <p class="hint">Skipped — ${e.reason || "nothing to do"}.</p></div>`;
+    }
+    const weather = e.marketHealthy
+      ? `<span class="log-tag good">🌤️ market healthy</span>`
+      : `<span class="log-tag warn">🌧️ market weak — buying paused</span>`;
+
+    let body = e.marketNote ? `<p class="log-why">${e.marketNote}</p>` : "";
+
+    if (e.sells?.length) {
+      body += `<div class="log-section"><b>🔴 Sold</b>` +
+        e.sells.map((s) => `<div class="plan-item"><b>${s.symbol}</b> — ${s.reason}</div>`).join("") +
+        `</div>`;
+    }
+    if (e.buys?.length) {
+      body += `<div class="log-section"><b>🟢 Bought</b>` +
+        e.buys.map((b) => `<div class="plan-item"><b>${b.symbol}</b> (${money(b.dollars)}) — ${b.reason}</div>`).join("") +
+        `</div>`;
+    }
+    for (const n of (e.notes || [])) body += `<p class="hint">• ${n}</p>`;
+    if (!e.sells?.length && !e.buys?.length) {
+      body += `<p class="hint">✅ Did nothing — the portfolio already matched the strategy. Doing nothing is a decision too.</p>`;
+    }
+    if (e.actions?.length) {
+      body += `<div class="log-actions"><b>Actions placed:</b> ${e.actions.join(" · ")}</div>`;
+    }
+    for (const err of (e.errors || [])) body += `<div class="banner bad">⚠️ ${err}</div>`;
+
+    return `<div class="log-day">
+      <div class="log-head"><span class="log-date">${dayName(e.date)}</span>${weather}</div>
+      ${body}</div>`;
+  }).join("");
 }
 
 function fmtTime(iso) {

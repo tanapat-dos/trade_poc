@@ -121,6 +121,7 @@ export async function runDaily({ key, secret, budget = 1000, dryRun = false, req
     marketNote: plan.marketNote,
     budget, invested: Math.round(invested * 100) / 100,
     dryRun,
+    notes: plan.notes || [],
     sells: plan.sells.map(([t, r]) => ({ symbol: t, reason: r })),
     buys: plan.buys.map(([t, d, r]) => ({ symbol: t, dollars: d, reason: r })),
     executed: [],

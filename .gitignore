@@ -7,3 +7,7 @@ __pycache__/
 
 # reference docs (paid content - keep local)
 *.pdf
+
+# node
+node_modules/
+package-lock.json

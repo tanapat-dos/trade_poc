@@ -8,6 +8,7 @@
 // it secret. Uses the same ALPACA_KEY / ALPACA_SECRET env vars. Paper only.
 
 import { runDaily } from "../lib/dailyStrategy.mjs";
+import { entryFromSummary, saveEntry } from "../lib/log.mjs";
 
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj, null, 2), {
@@ -35,6 +36,11 @@ export default async (req) => {
   const execute = params.get("execute") === "1";
   try {
     const summary = await runDaily({ key, secret, budget, dryRun: !execute });
+    // Only real (executed) runs get recorded in the public log.
+    if (execute) {
+      try { await saveEntry(entryFromSummary(summary)); }
+      catch (e) { console.error("log write failed:", e.message); }
+    }
     return json(summary);
   } catch (e) {
     return json({ error: e.message }, 500);

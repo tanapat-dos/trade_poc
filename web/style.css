@@ -226,3 +226,28 @@ td.down { color: var(--red); font-weight: 600; }
   margin: 8px 0; padding: 10px 14px; border-radius: 10px;
   background: var(--card2); border: 1px solid var(--border);
 }
+
+/* ---------- daily decision log ---------- */
+.log-day {
+  border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px;
+  margin: 12px 0; background: var(--card2);
+}
+.log-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.log-date { font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+.log-tag {
+  font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border2); color: var(--muted); white-space: nowrap;
+}
+.log-tag.good { color: var(--green); border-color: rgba(52,211,153,.45); background: rgba(52,211,153,.1); }
+.log-tag.warn { color: var(--amber); border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.1); }
+.log-tag.neutral { color: var(--muted); }
+.log-why { color: var(--text); font-size: 14px; margin: 4px 0 10px; }
+.log-section { margin: 8px 0; }
+.log-section > b { display: block; margin-bottom: 4px; }
+.log-actions {
+  margin-top: 10px; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  background: rgba(91,140,255,.1); border: 1px solid rgba(91,140,255,.35);
+}

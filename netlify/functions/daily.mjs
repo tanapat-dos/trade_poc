@@ -10,6 +10,7 @@
 //   START_BUDGET  (default 1000) — total dollars the strategy manages.
 
 import { runDaily } from "../lib/dailyStrategy.mjs";
+import { entryFromSummary, saveEntry } from "../lib/log.mjs";
 
 export default async () => {
   const key = process.env.ALPACA_KEY;
@@ -24,6 +25,9 @@ export default async () => {
   try {
     const summary = await runDaily({ key, secret, budget, requireOpen: true });
     console.log("daily run:", JSON.stringify(summary));
+    // Record the day's decision + actions in the public log.
+    try { await saveEntry(entryFromSummary(summary)); }
+    catch (e) { console.error("log write failed:", e.message); }
     return new Response(JSON.stringify(summary), {
       headers: { "content-type": "application/json" },
     });

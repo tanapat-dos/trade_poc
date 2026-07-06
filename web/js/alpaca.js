@@ -21,5 +21,3 @@ export const portfolioHistory = () =>
   api("/account/portfolio/history?period=3M&timeframe=1D");
 export const getClock = () => api("/clock");
 export const getOpenOrders = () => api("/orders?status=open&limit=100");
-export const getRecentOrders = () =>
-  api("/orders?status=all&limit=100&direction=desc");
