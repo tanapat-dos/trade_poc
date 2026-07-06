@@ -1,51 +1,43 @@
-// Manual trigger for the daily strategy — handy for testing without waiting
-// for the 14:45 UTC schedule.
+// Owner-only manual trigger for the daily strategy.
 //
-//   GET /api/run-daily            -> PREVIEW only (decides, places nothing)
-//   GET /api/run-daily?execute=1  -> actually places the orders
+//   GET /api/run-daily?token=SECRET             -> PREVIEW only (places nothing)
+//   GET /api/run-daily?token=SECRET&execute=1   -> actually places the orders
 //
-// Uses the same ALPACA_KEY / ALPACA_SECRET env vars as the scheduled run.
-// Paper account only.
+// Requires a private token so the public showcase link can't be used to
+// trigger trades. Set RUN_TOKEN in the Netlify environment variables and keep
+// it secret. Uses the same ALPACA_KEY / ALPACA_SECRET env vars. Paper only.
 
 import { runDaily } from "../lib/dailyStrategy.mjs";
 
+const json = (obj, status = 200) =>
+  new Response(JSON.stringify(obj, null, 2), {
+    status, headers: { "content-type": "application/json" },
+  });
+
 export default async (req) => {
-  const url = new URL(req.url);
-
-  // Safe diagnostic: reports ONLY which env-var names the function can see
-  // (never their values), to debug env-var scope/naming issues.
-  if (url.searchParams.get("debug") === "1") {
-    const names = Object.keys(process.env);
-    return new Response(JSON.stringify({
-      ALPACA_KEY_present: !!process.env.ALPACA_KEY,
-      ALPACA_SECRET_present: !!process.env.ALPACA_SECRET,
-      START_BUDGET_present: !!process.env.START_BUDGET,
-      alpaca_like_names: names.filter((n) => /alpaca/i.test(n)),
-      total_env_vars_visible: names.length,
-    }, null, 2), { headers: { "content-type": "application/json" } });
-  }
-
   const key = process.env.ALPACA_KEY;
   const secret = process.env.ALPACA_SECRET;
   const budget = +(process.env.START_BUDGET || 1000);
+  const runToken = process.env.RUN_TOKEN;
 
   if (!key || !secret) {
-    return new Response(JSON.stringify({ error: "ALPACA_KEY / ALPACA_SECRET env vars are not set in Netlify" }), {
-      status: 500, headers: { "content-type": "application/json" },
-    });
+    return json({ error: "ALPACA_KEY / ALPACA_SECRET env vars are not set in Netlify" }, 500);
+  }
+  if (!runToken) {
+    return json({ error: "RUN_TOKEN env var is not set — manual runs are disabled until you set one" }, 403);
   }
 
-  const execute = new URL(req.url).searchParams.get("execute") === "1";
+  const params = new URL(req.url).searchParams;
+  if (params.get("token") !== runToken) {
+    return json({ error: "invalid or missing token" }, 401);
+  }
 
+  const execute = params.get("execute") === "1";
   try {
     const summary = await runDaily({ key, secret, budget, dryRun: !execute });
-    return new Response(JSON.stringify(summary, null, 2), {
-      headers: { "content-type": "application/json" },
-    });
+    return json(summary);
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500, headers: { "content-type": "application/json" },
-    });
+    return json({ error: e.message }, 500);
   }
 };
 

@@ -1,32 +1,12 @@
-// Browser-side Alpaca client. Keys live ONLY in this browser's localStorage
-// and travel through our /api/alpaca proxy, which is hardwired to the
-// PAPER (pretend money) endpoint.
+// Read-only client for the OWNER's Alpaca paper account.
+//
+// Everything goes through /api/public, a server-side proxy that uses the
+// owner's keys (stored in Netlify env vars) and only permits GET reads. The
+// browser never holds any keys and cannot place or cancel orders — this is a
+// public "watch how the robot is doing" showcase.
 
-const KEY = "tradelab_alpaca_key";
-const SECRET = "tradelab_alpaca_secret";
-
-export const isConfigured = () =>
-  !!(localStorage.getItem(KEY) && localStorage.getItem(SECRET));
-
-export function saveKeys(key, secret) {
-  localStorage.setItem(KEY, key.trim());
-  localStorage.setItem(SECRET, secret.trim());
-}
-
-export function forgetKeys() {
-  localStorage.removeItem(KEY);
-  localStorage.removeItem(SECRET);
-}
-
-async function api(path, opts = {}) {
-  const r = await fetch("/api/alpaca" + path, {
-    ...opts,
-    headers: {
-      "x-alpaca-key": localStorage.getItem(KEY) || "",
-      "x-alpaca-secret": localStorage.getItem(SECRET) || "",
-      ...(opts.headers || {}),
-    },
-  });
+async function api(path) {
+  const r = await fetch("/api/public" + path);
   if (!r.ok) {
     let msg = `HTTP ${r.status}`;
     try { msg = (await r.json()).message || msg; } catch { /* keep default */ }
@@ -39,31 +19,7 @@ export const getAccount = () => api("/account");
 export const getPositions = () => api("/positions");
 export const portfolioHistory = () =>
   api("/account/portfolio/history?period=3M&timeframe=1D");
-
-// Is the US market open right now? Returns { is_open, next_open, next_close }.
 export const getClock = () => api("/clock");
-
-// Orders that haven't filled yet (queued — will execute at next market open).
 export const getOpenOrders = () => api("/orders?status=open&limit=100");
-
-// Recent orders (any status) — used for the day-by-day activity log.
 export const getRecentOrders = () =>
   api("/orders?status=all&limit=100&direction=desc");
-
-// Cancel every queued order (used to avoid duplicate stacked orders).
-export const cancelAllOrders = () => api("/orders", { method: "DELETE" });
-
-export const buyNotional = (symbol, dollars) =>
-  api("/orders", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      symbol,
-      notional: dollars.toFixed(2),
-      side: "buy",
-      type: "market",
-      time_in_force: "day",
-    }),
-  });
-
-export const sellAll = (symbol) => api(`/positions/${symbol}`, { method: "DELETE" });

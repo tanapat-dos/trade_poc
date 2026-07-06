@@ -144,69 +144,17 @@ function card(label, value, sub = "", up = null) {
   return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div><div class="sub ${cls}">${sub}</div></div>`;
 }
 
-// ---------------- live practice ----------------
+// ---------------- live practice (read-only showcase) ----------------
 let liveInitDone = false;
 
 async function initLive() {
-  if (!alpaca.isConfigured()) {
-    $("live-setup").hidden = false;
-    $("live-dash").hidden = true;
-    return;
-  }
-  $("live-setup").hidden = true;
   $("live-dash").hidden = false;
   if (liveInitDone) return;
   liveInitDone = true;
   await refreshAccount();
+  // Keep the showcase fresh while the page is open.
+  setInterval(refreshAccount, 60000);
 }
-
-$("connect-btn").addEventListener("click", async () => {
-  const btn = $("connect-btn");
-  const key = $("alpaca-key").value.trim(), secret = $("alpaca-secret").value.trim();
-  if (!key || !secret) { $("connect-msg").innerHTML = `<div class="banner bad">Please paste both keys.</div>`; return; }
-
-  // Saving to localStorage can throw (Safari private mode / storage blocked).
-  try {
-    alpaca.saveKeys(key, secret);
-  } catch (e) {
-    $("connect-msg").innerHTML = `<div class="banner bad">Your browser is blocking local storage, so the keys can't be saved. Turn off private/incognito mode (or allow site data) and try again. (${e.message})</div>`;
-    return;
-  }
-
-  btn.disabled = true;
-  $("connect-msg").innerHTML = `<div class="banner">Connecting to Alpaca…</div>`;
-  try {
-    await alpaca.getAccount();
-    $("connect-msg").innerHTML = `<div class="banner good">Connected! 🎉</div>`;
-    liveInitDone = false;
-    initLive();
-  } catch (e) {
-    alpaca.forgetKeys();
-    $("connect-msg").innerHTML = `<div class="banner bad">Keys were rejected — double-check you copied the <b>Paper</b> keys. (${e.message})</div>`;
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-$("forget-btn").addEventListener("click", () => {
-  alpaca.forgetKeys();
-  liveInitDone = false;
-  initLive();
-});
-
-$("cancel-pending-btn").addEventListener("click", async () => {
-  const btn = $("cancel-pending-btn");
-  btn.disabled = true;
-  btn.textContent = "Canceling…";
-  try {
-    await alpaca.cancelAllOrders();
-    setTimeout(refreshAccount, 1500);
-  } catch (e) {
-    $("pending-orders").innerHTML += `<div class="banner bad">Couldn't cancel: ${e.message}</div>`;
-  } finally {
-    setTimeout(() => { btn.disabled = false; btn.textContent = "✖ Cancel all waiting orders"; }, 1600);
-  }
-});
 
 async function refreshAccount() {
   refreshMarketAndOrders(); // market status + pending orders + activity log (independent)
@@ -214,6 +162,7 @@ async function refreshAccount() {
     const [acct, positions, hist] = await Promise.all([
       alpaca.getAccount(), alpaca.getPositions(), alpaca.portfolioHistory(),
     ]);
+    window._account = acct;
     window._positions = positions;
 
     const equity = +acct.equity, cash = +acct.cash;
@@ -381,28 +330,18 @@ $("plan-btn").addEventListener("click", async () => {
   const btn = $("plan-btn");
   btn.disabled = true;
   try {
-    // Guard against stacking: if orders are still queued from a previous run,
-    // buying again would double up. Make the user clear them first.
-    let openOrders = [];
-    try { openOrders = await alpaca.getOpenOrders(); } catch { /* non-fatal */ }
-    if (openOrders.length) {
-      $("plan-output").innerHTML =
-        `<div class="banner warn">⏳ You already have <b>${openOrders.length}</b> order(s) waiting to fill (see "Orders waiting to execute" above). Placing a new plan now would buy those same stocks twice. Wait for them to fill at the next market open, or cancel them first.</div>`;
-      return;
-    }
-
     const end = iso(new Date());
     const warmup = iso(new Date(Date.now() - 550 * 864e5));
     const { data, spy } = await loadMarketData(warmup, end, $("plan-progress"));
 
     const positions = window._positions || [];
     const held = {};
-    let invested = 0;
     for (const p of positions) {
       held[p.symbol] = { entry: +p.avg_entry_price, now: +p.current_price, value: +p.market_value };
-      invested += +p.market_value;
     }
-    const budget = Math.max(0, (+$("budget").value || 1000) - invested);
+    // Uninvested cash is what the strategy would deploy next — matches the
+    // server-side auto-pilot's budget (start amount minus what's invested).
+    const budget = Math.max(0, +(window._account?.cash) || 0);
     const plan = todaysPlan(data, spy, held, budget);
     renderPlan(plan);
   } catch (e) {
@@ -417,49 +356,25 @@ function renderPlan(plan) {
   for (const n of plan.notes) html += `<div class="banner warn">${n}</div>`;
 
   if (!plan.sells.length && !plan.buys.length) {
-    html += `<div class="banner good">✅ Nothing to do today — the portfolio is exactly what the strategy wants. Doing nothing is a decision too.</div>`;
+    html += `<div class="banner good">✅ Nothing to do right now — the portfolio already matches what the strategy wants. Doing nothing is a decision too.</div>`;
   }
   if (plan.sells.length) {
-    html += `<h4>🔴 The strategy says SELL:</h4>` +
+    html += `<h4>🔴 The strategy would SELL:</h4>` +
       plan.sells.map(([t, r]) => `<div class="plan-item"><b>${t}</b> — ${r}</div>`).join("");
   }
   if (plan.buys.length) {
-    html += `<h4>🟢 The strategy says BUY:</h4>` +
+    html += `<h4>🟢 The strategy would BUY:</h4>` +
       plan.buys.map(([t, d, r]) => `<div class="plan-item"><b>${t}</b> (${money(d)}) — ${r}</div>`).join("");
   }
   if (plan.sells.length || plan.buys.length) {
-    const marketMsg = window._marketOpen
-      ? `The market is open, so these will fill within seconds.`
-      : `The market is closed right now, so these will <b>wait in line and fill at the next open</b> (9:30 New York time, Mon–Fri). They'll show under "Orders waiting to execute" until then — don't submit them again.`;
-    html += `<p class="hint">${marketMsg}</p>
-      <button id="execute-btn" class="primary">✅ Yes — do all of this in my pretend account</button>`;
+    html += `<p class="hint">🤖 The auto-pilot places these automatically every weekday shortly after the open — no button to press. This is just a preview of its current thinking.</p>`;
   }
-  html += `<details><summary>🏆 See today's full strength ranking</summary><div class="table-wrap"><table>
+  html += `<details><summary>🏆 See the full strength ranking right now</summary><div class="table-wrap"><table>
     <tr><th>Rank</th><th>Stock</th><th>Past gain</th></tr>` +
     plan.rankings.map((r) => `<tr><td>#${r.rank}</td><td><b>${r.stock}</b></td><td class="${r.gain >= 0 ? "up" : "down"}">${pct(r.gain)}</td></tr>`).join("") +
     `</table></div></details>`;
 
   $("plan-output").innerHTML = html;
-
-  const exec = $("execute-btn");
-  if (exec) exec.addEventListener("click", async () => {
-    exec.disabled = true;
-    const log = [];
-    for (const [t] of plan.sells) {
-      try { await alpaca.sellAll(t); log.push(`🔴 Sold ${t}`); }
-      catch (e) { log.push(`⚠️ Couldn't sell ${t}: ${e.message}`); }
-    }
-    for (const [t, d] of plan.buys) {
-      try { await alpaca.buyNotional(t, d); log.push(`🟢 Bought ${money(d)} of ${t}`); }
-      catch (e) { log.push(`⚠️ Couldn't buy ${t}: ${e.message}`); }
-    }
-    const doneMsg = window._marketOpen
-      ? `Done! Your positions will update in a minute.`
-      : `Done! The market is closed, so these are now <b>waiting orders</b> — they'll fill at the next open. Check back after 9:30 New York time. No need to press this again.`;
-    $("plan-output").innerHTML = log.map((l) => `<div class="plan-item">${l}</div>`).join("") +
-      `<div class="banner good">${doneMsg}</div>`;
-    setTimeout(refreshAccount, 3000);
-  });
 }
 
 // Live practice is the landing tab — initialize it on load.

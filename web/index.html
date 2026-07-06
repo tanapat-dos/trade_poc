@@ -101,81 +101,58 @@
 <!-- ================= LIVE PRACTICE ================= -->
 <section id="tab-live">
   <div class="card intro">
-    <span class="pill">🔒 Pretend money only</span>
-    This is your robot's <strong>paper-trading</strong> account on <strong>Alpaca</strong> —
-    a flight simulator with real live market prices and fake money. It's hard-wired
-    to the pretend account and physically cannot spend real cash.
-  </div>
-
-  <div id="live-setup" class="card" hidden>
-    <h3>One-time setup (about 5 minutes)</h3>
-    <ol>
-      <li>Go to <a href="https://alpaca.markets" target="_blank" rel="noopener">alpaca.markets</a>
-        → <em>Sign up</em> (free — no bank account or deposit needed)</li>
-      <li>In the dashboard, make sure the switch at the top-left says
-        <strong>Paper</strong> (pretend money) — not Live</li>
-      <li>Find <strong>API Keys</strong> on the right → <em>Generate new keys</em></li>
-      <li>Paste the two codes below — they're saved <em>only in this browser</em></li>
-    </ol>
-    <div class="controls">
-      <label>API Key ID <input type="password" id="alpaca-key"></label>
-      <label>Secret Key <input type="password" id="alpaca-secret"></label>
-    </div>
-    <button id="connect-btn" class="primary">Connect</button>
-    <div id="connect-msg"></div>
+    <span class="pill">🔒 Pretend money only · live showcase</span>
+    You're watching a <strong>real momentum trading robot</strong> run live on a
+    <strong>paper-trading</strong> account (real market prices, fake money) via
+    <strong>Alpaca</strong>. This page is <strong>read-only</strong> — follow along
+    as the robot trades, but nobody here can move the money.
   </div>
 
   <div id="live-dash" hidden>
     <div class="row-between">
-      <h2>📊 Your pretend account</h2>
-      <button id="forget-btn" class="ghost">Disconnect / change keys</button>
+      <h2>📊 The robot's account</h2>
     </div>
 
     <div id="market-status"></div>
 
     <div class="banner auto-pilot">
-      🤖 <strong>Auto-pilot is on.</strong> The robot runs the strategy automatically
-      every weekday shortly after the market opens (≈9:45&nbsp;AM New&nbsp;York time).
-      You can also run it yourself any time with the button below.
+      🤖 <strong>Auto-pilot is on.</strong> The robot runs the strategy by itself
+      every weekday shortly after the market opens (≈9:45&nbsp;AM New&nbsp;York time),
+      deciding what to buy, sell, or leave alone. Everything below updates on its own.
     </div>
 
     <div class="metric-grid" id="account-cards"></div>
     <div class="card"><h3>Account value over time</h3><div id="chart-account" class="chart small"></div></div>
     <div class="card">
-      <h3>Stocks you own</h3>
+      <h3>Stocks the robot owns</h3>
       <div class="table-wrap" id="positions-table"></div>
     </div>
     <div class="card" id="pending-card" hidden>
       <h3>⏳ Orders waiting to execute</h3>
-      <p class="hint">These were submitted while the market was closed. They'll fill
-      automatically at the next open — you don't need to submit them again.</p>
+      <p class="hint">Submitted while the market was closed — they fill automatically
+      at the next open.</p>
       <div class="table-wrap" id="pending-orders"></div>
-      <button id="cancel-pending-btn" class="ghost">✖ Cancel all waiting orders</button>
     </div>
 
     <div class="card">
-      <h3>🤖 Ask the strategy: <em>what should I do today?</em></h3>
-      <p class="hint">Runs “Follow the winners” on today's real prices and explains
-      its to-do list. Nothing happens until you press the button.</p>
-      <label>How much pretend money should the robot play with, total? ($)
-        <input type="number" id="budget" value="1000" min="100" step="100">
-      </label>
-      <button id="plan-btn" class="primary">🔍 Check today's plan</button>
+      <h3>🔮 What's the robot thinking right now?</h3>
+      <p class="hint">Runs “Follow the winners” on today's real prices and shows the
+      to-do list the auto-pilot would act on. Preview only — placing nothing.</p>
+      <button id="plan-btn" class="primary">🔍 Show the current plan</button>
       <div id="plan-progress" class="progress" hidden></div>
       <div id="plan-output"></div>
     </div>
 
     <div class="card">
       <h3>📅 Day-by-day activity</h3>
-      <p class="hint">Every buy, sell and fill the strategy has made, newest first.
-      A day with no entry means the strategy chose to do nothing that day.</p>
+      <p class="hint">Every buy, sell and fill the robot has made, newest first.
+      A day with no entry means it chose to do nothing that day.</p>
       <div class="table-wrap" id="activity-log"></div>
     </div>
 
-    <p class="hint">💡 <strong>How to use this mode:</strong> check the plan once a day
-    or even once a week — this strategy moves slowly, on purpose. Watch the account
-    chart grow (or not) and compare it with the time machine's promises. If after
-    1–2 months you trust it, <em>then</em> think about real money.</p>
+    <p class="hint">💡 This strategy moves slowly, on purpose. Check back every day or
+    two and watch the account chart grow (or not). Compare it with the Time machine's
+    promises to see how the real market treats the same rules.</p>
   </div>
 </section>
 
