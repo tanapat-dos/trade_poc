@@ -21,6 +21,7 @@ const YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)";
 
 const iso = (d) => d.toISOString().slice(0, 10);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function alpaca(path, key, secret, opts = {}) {
   const r = await fetch(PAPER + path, {
@@ -103,7 +104,17 @@ export async function runDaily({ key, secret, budget = 1000, dryRun = false, req
     throw new Error(`not enough price data (got ${data.size} symbols, spy=${!!spy})`);
   }
 
-  const positions = await alpaca("/positions", key, secret);
+  // Read holdings. Retry once on an empty read: a spurious empty response here
+  // would make the strategy think it owns nothing and try to re-buy everything.
+  let positions = await alpaca("/positions", key, secret);
+  const acct = await alpaca("/account", key, secret);
+  if ((!positions || positions.length === 0) && +acct.cash < budget * 0.5) {
+    // Account is clearly invested (little cash) but positions came back empty —
+    // that's inconsistent, so re-read before trusting it.
+    await sleep(1500);
+    positions = await alpaca("/positions", key, secret);
+  }
+
   const held = {};
   let invested = 0;
   for (const p of positions) {
@@ -130,24 +141,48 @@ export async function runDaily({ key, secret, budget = 1000, dryRun = false, req
 
   if (dryRun) return summary;
 
-  // Sells first (frees cash), then buys.
+  // --- 1) SELL first so the cash is freed before we try to buy. ---
+  let soldAny = false;
   for (const [t] of plan.sells) {
     try {
       await alpaca(`/positions/${t}`, key, secret, { method: "DELETE" });
       summary.executed.push(`SELL ${t}`);
+      soldAny = true;
     } catch (e) { summary.errors.push(`sell ${t}: ${e.message}`); }
   }
-  for (const [t, d] of plan.buys) {
-    try {
-      await alpaca("/orders", key, secret, {
-        method: "POST",
-        body: JSON.stringify({
-          symbol: t, notional: d.toFixed(2),
-          side: "buy", type: "market", time_in_force: "day",
-        }),
-      });
-      summary.executed.push(`BUY $${d.toFixed(2)} ${t}`);
-    } catch (e) { summary.errors.push(`buy ${t}: ${e.message}`); }
+
+  // --- 2) Wait for sell proceeds to settle into cash (market orders fill fast
+  // while the market is open, but not instantly). ---
+  if (soldAny) await sleep(5000);
+
+  // --- 3) Re-read the REAL account state: available cash + what we still hold. ---
+  const acctNow = await alpaca("/account", key, secret);
+  const heldNow = new Set((await alpaca("/positions", key, secret)).map((p) => p.symbol));
+  const cash = Math.max(0, +acctNow.cash);
+
+  // --- 4) Only buy names we don't already own, and size STRICTLY from real
+  // cash (keep a 2% buffer so a tick up in price can't overdraw buying power).
+  const targets = plan.buys.map(([t]) => t).filter((t) => !heldNow.has(t));
+  if (!targets.length) {
+    if (plan.buys.length) summary.notes.push("Skipped buys — already holding those names.");
+  } else {
+    const perPosition = Math.floor((cash * 0.98 / targets.length) * 100) / 100;
+    if (perPosition < 1) {
+      summary.notes.push(`Not enough free cash ($${cash.toFixed(2)}) to open ${targets.length} new position(s) — the account is fully invested. Will buy when a sell frees cash.`);
+    } else {
+      for (const t of targets) {
+        try {
+          await alpaca("/orders", key, secret, {
+            method: "POST",
+            body: JSON.stringify({
+              symbol: t, notional: perPosition.toFixed(2),
+              side: "buy", type: "market", time_in_force: "day",
+            }),
+          });
+          summary.executed.push(`BUY $${perPosition.toFixed(2)} ${t}`);
+        } catch (e) { summary.errors.push(`buy ${t}: ${e.message}`); }
+      }
+    }
   }
 
   return summary;
